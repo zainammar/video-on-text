@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Overlay Editor</title>
+  <style>
+    body { font-family: Arial; padding: 20px; text-align: center; }
+    #main { max-width: 800px; margin: auto; border: 1px solid #ccc; padding: 20px; }
+    canvas { width: 100%; max-width: 100%; background: black; }
+    video { display: none; }
+  </style>
+</head>
+<body>
+  <div id="main">
+    <h2>Video Overlay Editor</h2>
+    <input type="file" id="videoInput" accept="video/*"><br><br>
+    <input type="file" id="imageInput" accept="image/*"><br><br>
+    <input type="text" id="overlayText" placeholder="Enter overlay text"><br><br>
+    <button onclick="startProcessing()">Start & Download</button><br><br>
+    <canvas id="canvas" width="640" height="360"></canvas>
+    <video id="video" crossorigin="anonymous"></video>
+    <a id="downloadLink" style="display:none;" download="edited_video.webm">Download Edited Video</a>
+  </div>
+
+  <script>
+    const videoInput = document.getElementById('videoInput');
+    const imageInput = document.getElementById('imageInput');
+    const overlayText = document.getElementById('overlayText');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const video = document.getElementById('video');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let imageOverlay = null;
+
+    imageInput.addEventListener('change', () => {
+      const file = imageInput.files[0];
+      if (file) {
+        const img = new Image();
+        img.onload = () => imageOverlay = img;
+        img.src = URL.createObjectURL(file);
+      }
+    });
+
+    function startProcessing() {
+      const file = videoInput.files[0];
+      if (!file) {
+        alert("Please select a video.");
+        return;
+      }
+
+      const videoURL = URL.createObjectURL(file);
+      video.src = videoURL;
+
+      video.onloadedmetadata = () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const stream = canvas.captureStream();
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          downloadLink.href = url;
+          downloadLink.style.display = 'inline-block';
+        };
+
+        video.play();
+        recorder.start();
+
+        const draw = () => {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          // Draw overlay text
+          const text = overlayText.value;
+          if (text) {
+            ctx.font = "30px Arial";
+            ctx.fillStyle = "red";
+            ctx.fillText(text, 20, 40);
+          }
+
+          // Draw overlay image if available
+          if (imageOverlay) {
+            const imgWidth = canvas.width / 5;
+            const imgHeight = imgWidth * (imageOverlay.height / imageOverlay.width);
+            ctx.drawImage(imageOverlay, canvas.width - imgWidth - 10, 10, imgWidth, imgHeight);
+          }
+
+          if (!video.paused && !video.ended) {
+            requestAnimationFrame(draw);
+          } else {
+            recorder.stop();
+          }
+        };
+
+        draw();
+      };
+    }
+  </script>
+</body>
+</html>
